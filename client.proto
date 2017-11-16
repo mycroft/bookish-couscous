@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "blah.client";
+option java_outer_classname = "ClientProto";
+
+package main;
+
+service Greeter {
+  rpc SayHello (HelloRequest) returns (HelloReply) {}
+}
+
+// The request message containing the user's name.
+message HelloRequest {
+  uint32 uid = 1;
+}
+
+// The response message containing the greetings
+message HelloReply {
+  uint32 best_friend = 1;
+  uint32 crush = 2;
+  uint32 most_seen = 3;
+  uint32 mutual_love = 4;
+  uint32 mutual_love_all_time = 5;
+}

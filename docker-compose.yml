@@ -1,0 +1,42 @@
+version: '3'
+services:
+    redis:
+        image: "redis:alpine"
+    scylla:
+        image: "scylladb/scylla:latest"
+    zookeeper:
+        image: "wurstmeister/zookeeper"
+        ports:
+            - "2181:2181"
+    kafka:
+        image: "wurstmeister/kafka"
+        depends_on:
+            - "zookeeper"
+        ports:
+            - "9092"
+        environment:
+            KAFKA_ADVERTISED_HOST_NAME: 172.17.0.1
+            KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+            KAFKA_CREATE_TOPICS: "sessions:1:1"
+        volumes:
+            - /var/run/docker.sock:/var/run/docker.sock
+    generator:
+        build: ./generator
+        depends_on:
+            - "kafka"
+            - "redis"
+    processor:
+        build: ./processor
+        depends_on:
+            - "kafka"
+            - "scylla"
+            - "redis"
+    fo:
+        build: ./fo
+        depends_on:
+            - "kafka"
+            - "scylla"
+    client:
+        build: ./client
+        depends_on:
+            - "fo"

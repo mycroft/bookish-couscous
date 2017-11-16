@@ -1,0 +1,13 @@
+syntax = "proto3";
+package main;
+
+message Session {
+  uint32 user1_id = 1;
+  uint32 user2_id = 2;
+
+  uint64 start_ts = 3;
+  uint64 end_ts = 4;
+
+  double latitude = 5;
+  double longitude = 6;
+}
