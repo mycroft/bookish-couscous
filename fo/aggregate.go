@@ -1,12 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"time"
 
 	"gitlab.mkz.me/mycroft/bookish-couscous/common"
 
+	"github.com/garyburd/redigo/redis"
 	"github.com/gocql/gocql"
+	"github.com/golang/protobuf/proto"
 )
 
 //
@@ -25,7 +28,58 @@ func GetDuration(m *map[time.Time]uint64) uint64 {
 	return total
 }
 
-func GetFriends(cql *gocql.Session, uid uint32, recursive bool) *HelloReply {
+func LoadCachedState(rc redis.Conn, uid uint32) (*HelloReply, error) {
+	v, err := rc.Do("EXISTS", fmt.Sprintf("state:%d", uid))
+	if err != nil {
+		return nil, err
+	}
+
+	b, err := redis.Bool(v, err)
+	if err != nil {
+		return nil, err
+	}
+
+	if !b {
+		return nil, nil
+	}
+
+	v, err = rc.Do("GET", fmt.Sprintf("state:%d", uid))
+	if err != nil {
+		return nil, err
+	}
+
+	out, err := redis.Bytes(v, err)
+	if err != nil {
+		return nil, err
+	}
+
+	helloReply := new(HelloReply)
+
+	err = proto.Unmarshal(out, helloReply)
+	if err != nil {
+		return nil, err
+	}
+
+	return helloReply, nil
+}
+
+func CacheState(rc redis.Conn, uid uint32, hr *HelloReply) error {
+	out, err := proto.Marshal(hr)
+	if err != nil {
+		return err
+	}
+
+	_, err = rc.Do("SET", fmt.Sprintf("state:%d", uid), out)
+	if err != nil {
+		return err
+	}
+
+	_, err = rc.Do("SETEX", fmt.Sprintf("state:%d", uid), 3600*12)
+
+	return err
+}
+
+func GetFriends(cql *gocql.Session, rc redis.Conn, uid uint32, recursive bool) *HelloReply {
 	var rel_user_id uint32
 	var duration uint64
 	week_friends_list := make(map[time.Time]uint64)
@@ -34,6 +88,15 @@ func GetFriends(cql *gocql.Session, uid uint32, recursive bool) *HelloReply {
 
 	if recursive {
 		log.Println("Wake up Neo, we are looking at uid", uid)
+
+		// Check in redis
+		state, err := LoadCachedState(rc, uid)
+		if err == nil && state != nil {
+			log.Println("Using cache value...")
+			return state
+		} else if err != nil {
+			panic(err)
+		}
 	}
 
 	helloReply := new(HelloReply)
@@ -113,7 +176,7 @@ func GetFriends(cql *gocql.Session, uid uint32, recursive bool) *HelloReply {
 
 	// we all calling the same function over those 2 users
 
-	rel_most := GetFriends(cql, max_most_uid, false)
+	rel_most := GetFriends(cql, rc, max_most_uid, false)
 	if rel_most.GetMutualLove() == uid {
 		log.Println(uid, "found its mutual love", max_most_uid)
 		helloReply.MutualLove = max_most_uid
@@ -121,7 +184,7 @@ func GetFriends(cql *gocql.Session, uid uint32, recursive bool) *HelloReply {
 
 	if max_most_uid != max_most_all_time_uid {
 		// do not recompute only if user is different... we never know!
-		rel_most = GetFriends(cql, max_most_all_time_uid, false)
+		rel_most = GetFriends(cql, rc, max_most_all_time_uid, false)
 	}
 
 	if rel_most.GetMutualLoveAllTime() == uid {
@@ -129,10 +192,12 @@ func GetFriends(cql *gocql.Session, uid uint32, recursive bool) *HelloReply {
 		helloReply.MutualLoveAllTime = max_most_all_time_uid
 	}
 
+	CacheState(rc, uid, helloReply)
+
 	return helloReply
 }
 
-func aggregate(cql *gocql.Session, uid uint32) *HelloReply {
+func aggregate(cql *gocql.Session, rc redis.Conn, uid uint32) *HelloReply {
 	// Get all records for given uid
-	return GetFriends(cql, uid, true)
+	return GetFriends(cql, rc, uid, true)
 }

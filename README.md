@@ -46,7 +46,7 @@ followed basic tutorials and I'm maybe not using them perfectly:
 $ docker build -t bookish-couscous-base .
 
 # Start the stack:
-$ docker-composer up -d
+$ docker-compose up -d
 
 # To send events:
 $ docker exec -ti bookishcouscous_generator_1 generator -h
@@ -111,6 +111,7 @@ already outdated by relationships, and thus will be needed to be recomputed...)
 
 It runs only 4 db queries: 2 read & 2 writes (1 for each users of the session).
 It also runs 2 read on redis.
+It will invalidate also data computed & stored by fo component (see next section).
 
 It can be ran multiple instance of processors. Each are independent and keeps no persistant information
 in memory.
@@ -119,13 +120,13 @@ in memory.
 
 Listens for client's requests through a grpc socket.
 
-On a client request, it will fetch user's friends and compute through a single iteration
+On a client request, it will fetch user's friends data from scylla and compute through a single iteration
 over its friend's relationships metadata for best friends, most seens, etc.
 
 At the end of the process, we'll do the same over its "most seen" (7 days & all time) friend,
 and if uids are the same on each sides of relationship, they we can conclude "mutual love".
 
-Result is stored in redis (cached 12h) & returned by socket
+Result is stored in redis (cached 12h - because daily data become obsolete at a point) & returned by grpc socket.
 
 ### client
 
@@ -182,9 +183,9 @@ SELECT duration, nights, week_most_list, week_friends_list
 
 - TBW
 
+
 ## Todo:
 
 - Revoir l'algo nuit
 - Data generator
-- cache fo; invalidation on new session
 - multiple fo (google tcp backend), multiple processor

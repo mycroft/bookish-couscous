@@ -4,10 +4,10 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"net"
 
+	"github.com/garyburd/redigo/redis"
 	"github.com/gocql/gocql"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
@@ -16,6 +16,7 @@ import (
 
 var (
 	scyllaHP = "scylla"
+	redisHP  = "redis:6379"
 )
 
 const (
@@ -24,10 +25,12 @@ const (
 
 func init() {
 	flag.StringVar(&scyllaHP, "scylla", scyllaHP, "scylla host port")
+	flag.StringVar(&redisHP, "redis", redisHP, "redis host port")
 }
 
 type server struct {
-	cql *gocql.Session
+	cql       *gocql.Session
+	redisConn redis.Conn
 }
 
 func InitCqlCluster() *gocql.Session {
@@ -40,9 +43,18 @@ func InitCqlCluster() *gocql.Session {
 	return session
 }
 
+func GetRedis() redis.Conn {
+	rc, err := redis.Dial("tcp", redisHP)
+	if err != nil {
+		panic(err)
+	}
+
+	return rc
+}
+
 // SayHello implements helloworld.GreeterServer
 func (s *server) SayHello(ctx context.Context, in *HelloRequest) (*HelloReply, error) {
-	helloReply := aggregate(s.cql, in.GetUid())
+	helloReply := aggregate(s.cql, s.redisConn, in.GetUid())
 
 	return helloReply, nil
 }
@@ -51,12 +63,15 @@ func main() {
 	flag.Parse()
 
 	serv := &server{}
-	fmt.Println("Hello world")
 
 	cqlSession := InitCqlCluster()
 	defer cqlSession.Close()
 
+	rc := GetRedis()
+	defer rc.Close()
+
 	serv.cql = cqlSession
+	serv.redisConn = rc
 
 	lis, err := net.Listen("tcp", port)
 	if err != nil {

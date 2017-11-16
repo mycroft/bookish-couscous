@@ -278,5 +278,16 @@ func Process(cql *gocql.Session, rc redis.Conn, session Session) error {
 	SaveRelMetadata(cql, relMetadata1)
 	SaveRelMetadata(cql, relMetadata2)
 
+	// Drop cache for state:uid, if any
+
+	_, err = rc.Do("DEL", fmt.Sprintf("state:%d", session.GetUser1Id()))
+	if err != nil {
+		return err
+	}
+	_, err = rc.Do("DEL", fmt.Sprintf("state:%d", session.GetUser2Id()))
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
