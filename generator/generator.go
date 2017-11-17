@@ -11,17 +11,9 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/garyburd/redigo/redis"
 	"github.com/golang/protobuf/proto"
+
+	"gitlab.mkz.me/mycroft/bookish-couscous/common"
 )
-
-/*
-Paris:
-lat: 48.901741 / long: 2.261124 (saint ouen)
-lat: 48.816811 / long: 2.405319 (ivry)
-
-Coeur de Paris:
-lat: 48.873522 / long: 2.326269 (bvd haussman)
-lat: 48.846079 / long: 2.360687 (institut monde arabe)
-*/
 
 var (
 	kafkaHP = "kafka:9092"
@@ -84,8 +76,17 @@ func sendMsg(kafka sarama.SyncProducer, event []byte) error {
 	return nil
 }
 
-func generateRandomLocation() *SignPlace {
-	sp := new(SignPlace)
+/*
+Paris:
+lat: 48.901741 / long: 2.261124 (saint ouen)
+lat: 48.816811 / long: 2.405319 (ivry)
+
+Coeur de Paris:
+lat: 48.873522 / long: 2.326269 (bvd haussman)
+lat: 48.846079 / long: 2.360687 (institut monde arabe)
+*/
+func generateRandomLocation() *common.SignPlace {
+	sp := new(common.SignPlace)
 	sp.Latitude = 48.816811 + rand.Float64()*(48.901741-48.816811)
 	sp.Longitude = 2.261124 + rand.Float64()*(2.405319-2.261124)
 
@@ -110,7 +111,7 @@ func main() {
 	num_friends := friends
 
 	rel := make([][]int, users)
-	spt := make([]SignPlace, users)
+	spt := make([]common.SignPlace, users)
 
 	// Initialize users
 	// (Create them an SP)
@@ -154,7 +155,7 @@ func main() {
 			loc = &spt[u1]
 		}
 
-		p := Session{
+		p := common.Session{
 			User1Id:   u1,
 			User2Id:   uint32(rel[u1][rand.Int()%num_friends]),
 			StartTs:   start_ts,

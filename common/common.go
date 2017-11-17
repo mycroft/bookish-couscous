@@ -1,3 +1,5 @@
+//go:generate protoc -I ./ --go_out=plugins=grpc:. signplace.proto session.proto client.proto
+
 package common
 
 import (

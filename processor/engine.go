@@ -5,12 +5,11 @@ import (
 	"log"
 	"time"
 
-	"gitlab.mkz.me/mycroft/bookish-couscous/common"
-
 	"github.com/garyburd/redigo/redis"
 	"github.com/gocql/gocql"
-	"github.com/golang/geo/s2"
 	"github.com/golang/protobuf/proto"
+
+	"gitlab.mkz.me/mycroft/bookish-couscous/common"
 )
 
 type RelMetadata struct {
@@ -116,24 +115,6 @@ func IsNight(start_ts uint64, end_ts uint64) bool {
 }
 
 //
-// Is current position (e) is in same cell that given place (sp) ?
-// As advised, it uses level 16 cells.
-//
-func IsNear(sp *SignPlace, e *SignPlace) bool {
-
-	sp_latlon := s2.LatLngFromDegrees(sp.GetLatitude(), sp.GetLongitude())
-	sp_cell := s2.CellFromLatLng(sp_latlon)
-
-	parent_sp_cell_id := sp_cell.ID().Parent(16)
-	parent_sp_cell := s2.CellFromCellID(parent_sp_cell_id)
-
-	latlon := s2.LatLngFromDegrees(e.GetLatitude(), e.GetLongitude())
-	p1 := s2.PointFromLatLng(latlon)
-
-	return parent_sp_cell.ContainsPoint(p1)
-}
-
-//
 // Remove older elements and returns sum of all values
 //
 func CleanMap(m *map[time.Time]uint64) uint64 {
@@ -186,7 +167,7 @@ func AddTimeTogetherFriends(rm *RelMetadata, date time.Time, duration uint64) {
 //
 // Retrieve in redis SP for a user
 //
-func LoadSP(rc redis.Conn, uid uint32) (*SignPlace, error) {
+func LoadSP(rc redis.Conn, uid uint32) (*common.SignPlace, error) {
 	c, err := rc.Do("GET", fmt.Sprintf("loc:%d", uid))
 	if err != nil {
 		log.Println(err)
@@ -199,7 +180,7 @@ func LoadSP(rc redis.Conn, uid uint32) (*SignPlace, error) {
 		return nil, err
 	}
 
-	loc := &SignPlace{}
+	loc := &common.SignPlace{}
 	if err := proto.Unmarshal([]byte(v), loc); err != nil {
 		return nil, err
 	}
@@ -221,7 +202,7 @@ func LoadSP(rc redis.Conn, uid uint32) (*SignPlace, error) {
 // Note at this point we did not compute best friend, crush, etc. We just prepared
 // data needed to do it according to given session
 //
-func Process(cql *gocql.Session, rc redis.Conn, session Session) error {
+func Process(cql *gocql.Session, rc redis.Conn, session common.Session) error {
 	// check if they are friends.
 	c, err := rc.Do("SISMEMBER", fmt.Sprintf("friends:%d", session.GetUser1Id()), session.GetUser2Id())
 	if v, err := redis.Bool(c, err); !v {
@@ -245,17 +226,17 @@ func Process(cql *gocql.Session, rc redis.Conn, session Session) error {
 	AddTimeTogether(relMetadata2, today, session_duration)
 
 	// Load SP (significant place)
-	session_loc := &SignPlace{session.GetLatitude(), session.GetLongitude()}
+	session_loc := &common.SignPlace{session.GetLatitude(), session.GetLongitude()}
 	sp1, err := LoadSP(rc, session.GetUser1Id())
 	sp2, err := LoadSP(rc, session.GetUser2Id())
 
 	// Adding spend together out of our SP: "Best friend" feature
-	if !IsNear(sp1, session_loc) {
+	if !common.IsNear(sp1, session_loc) {
 		AddTimeTogetherFriends(relMetadata1, today, session_duration)
 	}
 
 	// ... and we are doing this for both users.
-	if !IsNear(sp2, session_loc) {
+	if !common.IsNear(sp2, session_loc) {
 		AddTimeTogetherFriends(relMetadata2, today, session_duration)
 	}
 
@@ -267,7 +248,7 @@ func Process(cql *gocql.Session, rc redis.Conn, session Session) error {
 	// For crush, we make sure we are staying in the night,
 	// SPs must NOT be the same
 	// location must be either sp1 or sp2
-	if true == IsNight(session.GetStartTs(), session.GetEndTs()) && !IsNear(sp1, sp2) && (IsNear(sp1, session_loc) || IsNear(sp2, session_loc)) {
+	if true == IsNight(session.GetStartTs(), session.GetEndTs()) && !common.IsNear(sp1, sp2) && (common.IsNear(sp1, session_loc) || common.IsNear(sp2, session_loc)) {
 		// Add night to night list
 		t := time.Unix(int64(session.GetEndTs()), 0)
 

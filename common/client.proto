@@ -4,7 +4,7 @@ option java_multiple_files = true;
 option java_package = "blah.client";
 option java_outer_classname = "ClientProto";
 
-package main;
+package common;
 
 service Greeter {
   rpc SayHello (HelloRequest) returns (HelloReply) {}

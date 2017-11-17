@@ -2,3 +2,4 @@ generator/generator
 processor/processor
 fo/fo
 client/client
+common/*.pb.go

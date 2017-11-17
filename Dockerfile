@@ -14,3 +14,5 @@ RUN go get github.com/golang/geo/s2 && \
     go get google.golang.org/grpc/reflection
 
 ADD . /go/src/gitlab.mkz.me/mycroft/bookish-couscous
+RUN cd /go/src/gitlab.mkz.me/mycroft/bookish-couscous/common && go generate
+

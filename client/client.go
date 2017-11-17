@@ -1,43 +1,40 @@
-//go:generate protoc -I ../ --go_out=plugins=grpc:. ../client.proto
-
 package main
 
 import (
+	"flag"
 	"log"
-	"os"
-	"strconv"
 
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
+
+	"gitlab.mkz.me/mycroft/bookish-couscous/common"
 )
 
-const (
+var (
 	address = "fo:1980"
+	uid     = 0
 )
+
+func init() {
+	flag.StringVar(&address, "fo", "fo:1980", "fo host:port")
+	flag.IntVar(&uid, "uid", 0, "uid to query")
+}
 
 func main() {
+	flag.Parse()
+
 	// Set up a connection to the server.
 	conn, err := grpc.Dial(address, grpc.WithInsecure())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
 	defer conn.Close()
-	c := NewGreeterClient(conn)
+	c := common.NewGreeterClient(conn)
 
 	// Contact the server and print out its response.
-	uid := 0
-	if len(os.Args) <= 1 {
-		log.Fatalf("Please give an uid.")
-	} else {
-		uid, err = strconv.Atoi(os.Args[1])
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
 	log.Println("My uid is", uid)
 
-	r, err := c.SayHello(context.Background(), &HelloRequest{Uid: uint32(uid)})
+	r, err := c.SayHello(context.Background(), &common.HelloRequest{Uid: uint32(uid)})
 	if err != nil {
 		log.Fatalf("could not greet: %v", err)
 	}

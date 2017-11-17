@@ -5,11 +5,11 @@ import (
 	"log"
 	"time"
 
-	"gitlab.mkz.me/mycroft/bookish-couscous/common"
-
 	"github.com/garyburd/redigo/redis"
 	"github.com/gocql/gocql"
 	"github.com/golang/protobuf/proto"
+
+	"gitlab.mkz.me/mycroft/bookish-couscous/common"
 )
 
 //
@@ -28,7 +28,7 @@ func GetDuration(m *map[time.Time]uint64) uint64 {
 	return total
 }
 
-func LoadCachedState(rc redis.Conn, uid uint32) (*HelloReply, error) {
+func LoadCachedState(rc redis.Conn, uid uint32) (*common.HelloReply, error) {
 	v, err := rc.Do("EXISTS", fmt.Sprintf("state:%d", uid))
 	if err != nil {
 		return nil, err
@@ -53,7 +53,7 @@ func LoadCachedState(rc redis.Conn, uid uint32) (*HelloReply, error) {
 		return nil, err
 	}
 
-	helloReply := new(HelloReply)
+	helloReply := new(common.HelloReply)
 
 	err = proto.Unmarshal(out, helloReply)
 	if err != nil {
@@ -63,7 +63,7 @@ func LoadCachedState(rc redis.Conn, uid uint32) (*HelloReply, error) {
 	return helloReply, nil
 }
 
-func CacheState(rc redis.Conn, uid uint32, hr *HelloReply) error {
+func CacheState(rc redis.Conn, uid uint32, hr *common.HelloReply) error {
 	out, err := proto.Marshal(hr)
 	if err != nil {
 		return err
@@ -79,7 +79,7 @@ func CacheState(rc redis.Conn, uid uint32, hr *HelloReply) error {
 	return err
 }
 
-func GetFriends(cql *gocql.Session, rc redis.Conn, uid uint32, recursive bool) *HelloReply {
+func GetFriends(cql *gocql.Session, rc redis.Conn, uid uint32, recursive bool) *common.HelloReply {
 	var rel_user_id uint32
 	var duration uint64
 	week_friends_list := make(map[time.Time]uint64)
@@ -99,7 +99,7 @@ func GetFriends(cql *gocql.Session, rc redis.Conn, uid uint32, recursive bool) *
 		}
 	}
 
-	helloReply := new(HelloReply)
+	helloReply := new(common.HelloReply)
 
 	iter := cql.Query(
 		`SELECT rel_user_id, week_friends_list, week_most_list, nights, duration
@@ -197,7 +197,7 @@ func GetFriends(cql *gocql.Session, rc redis.Conn, uid uint32, recursive bool) *
 	return helloReply
 }
 
-func aggregate(cql *gocql.Session, rc redis.Conn, uid uint32) *HelloReply {
+func aggregate(cql *gocql.Session, rc redis.Conn, uid uint32) *common.HelloReply {
 	// Get all records for given uid
 	return GetFriends(cql, rc, uid, true)
 }

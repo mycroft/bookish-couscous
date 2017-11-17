@@ -11,6 +11,8 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"github.com/gocql/gocql"
 	"github.com/golang/protobuf/proto"
+
+	"gitlab.mkz.me/mycroft/bookish-couscous/common"
 )
 
 var (
@@ -140,7 +142,7 @@ func main() {
 		select {
 		case msg, ok := <-consumer.Messages():
 			if ok {
-				session := &Session{}
+				session := &common.Session{}
 				if err := proto.Unmarshal(msg.Value, session); err != nil {
 					panic(err)
 				}

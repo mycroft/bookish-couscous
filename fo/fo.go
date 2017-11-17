@@ -1,5 +1,3 @@
-//go:generate protoc -I ../ --go_out=plugins=grpc:. ../client.proto
-
 package main
 
 import (
@@ -12,6 +10,8 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
+
+	"gitlab.mkz.me/mycroft/bookish-couscous/common"
 )
 
 var (
@@ -53,7 +53,7 @@ func GetRedis() redis.Conn {
 }
 
 // SayHello implements helloworld.GreeterServer
-func (s *server) SayHello(ctx context.Context, in *HelloRequest) (*HelloReply, error) {
+func (s *server) SayHello(ctx context.Context, in *common.HelloRequest) (*common.HelloReply, error) {
 	helloReply := aggregate(s.cql, s.redisConn, in.GetUid())
 
 	return helloReply, nil
@@ -79,7 +79,7 @@ func main() {
 	}
 
 	s := grpc.NewServer()
-	RegisterGreeterServer(s, serv)
+	common.RegisterGreeterServer(s, serv)
 
 	reflection.Register(s)
 	if err := s.Serve(lis); err != nil {

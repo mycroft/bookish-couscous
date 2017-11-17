@@ -1,5 +1,5 @@
 syntax = "proto3";
-package main;
+package common;
 
 message Session {
   uint32 user1_id = 1;

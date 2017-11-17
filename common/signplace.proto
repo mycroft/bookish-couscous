@@ -1,5 +1,5 @@
 syntax = "proto3";
-package main;
+package common;
 
 message SignPlace {
   double latitude = 1;
