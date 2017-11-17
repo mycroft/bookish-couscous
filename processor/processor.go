@@ -19,12 +19,14 @@ var (
 	kafkaHP  = "kafka:9092"
 	redisHP  = "redis:6379"
 	scyllaHP = "scylla"
+	initdb   = false
 )
 
 func init() {
 	flag.StringVar(&kafkaHP, "kafka", kafkaHP, "kafka host port")
 	flag.StringVar(&redisHP, "redis", redisHP, "redis host port")
 	flag.StringVar(&scyllaHP, "scylla", scyllaHP, "scylla host port")
+	flag.BoolVar(&initdb, "init", false, "create scylla schema")
 }
 
 func WaitForClusterSession(cluster *gocql.ClusterConfig, wait int) (*gocql.Session, error) {
@@ -48,7 +50,7 @@ func WaitForClusterSession(cluster *gocql.ClusterConfig, wait int) (*gocql.Sessi
 	return session, err
 }
 
-func InitCqlCluster() *gocql.Session {
+func InitCqlCluster(initdb bool) *gocql.Session {
 	cluster := gocql.NewCluster(scyllaHP)
 	cluster.Keyspace = "system"
 
@@ -57,35 +59,35 @@ func InitCqlCluster() *gocql.Session {
 		panic(err)
 	}
 
-	// Create keyspace.
-	err = session.Query(
-		`CREATE KEYSPACE IF NOT EXISTS zenly
+	if initdb {
+		// Create keyspace.
+		err = session.Query(
+			`CREATE KEYSPACE IF NOT EXISTS zenly
 		 WITH REPLICATION = { 'class' : 'SimpleStrategy', 'replication_factor' : '1' };`).Exec()
-	if err != nil {
-		panic(err)
-	}
+		if err != nil {
+			panic(err)
+		}
 
-	// Create table
-	err = session.Query(
-		`CREATE TABLE IF NOT EXISTS zenly.kyf (
+		// Create table
+		err = session.Query(
+			`CREATE TABLE IF NOT EXISTS zenly.kyf (
 		 user_id bigint,
 		 rel_user_id bigint,
 		 PRIMARY KEY(user_id, rel_user_id),
 		 duration bigint,
-		 week_most bigint,
-		 week_friends bigint,
 		 nights list<timestamp>,
 		 week_most_list map<timestamp, int>,
 		 week_friends_list map<timestamp, int>,
 		);
 		`,
-	).Exec()
+		).Exec()
 
-	if err != nil {
-		panic(err)
+		if err != nil {
+			panic(err)
+		}
+
+		session.Close()
 	}
-
-	session.Close()
 
 	cluster.Keyspace = "zenly"
 	cluster.Consistency = gocql.Quorum
@@ -102,7 +104,7 @@ func main() {
 	config.Group.Return.Notifications = true
 
 	// init cql
-	cqlSession := InitCqlCluster()
+	cqlSession := InitCqlCluster(initdb)
 	defer cqlSession.Close()
 
 	// init consumer

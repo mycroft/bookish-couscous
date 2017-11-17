@@ -3,39 +3,38 @@
 package common
 
 import (
-	"sort"
 	"time"
 )
 
-type timeSlice []time.Time
-
-func (p timeSlice) Len() int           { return len(p) }
-func (p timeSlice) Less(i, j int) bool { return p[i].Before(p[j]) }
-func (p timeSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-
 //
-// Store last 3 nights in array.
-// Also, it removes very old nights (> 7 days)
+// Remove older elements and returns sum of all values
 //
-func Last3Nights(nights timeSlice) []time.Time {
-	if len(nights) < 1 {
-		return nights
-	}
+func CleanMap(m *map[time.Time]uint64) uint64 {
+	var total uint64
 
 	weekago := time.Now().Add(time.Duration(-1 * time.Second * 86400 * 7))
-	sort.Sort(nights)
-
-	for {
-		if nights[0].Before(weekago) || len(nights) > 3 {
-			nights = nights[1:]
+	for k, v := range *m {
+		if !weekago.Before(k) {
+			delete(*m, k)
 		} else {
-			break
-		}
-
-		if len(nights) < 1 {
-			break
+			total += v
 		}
 	}
 
-	return nights
+	return total
+}
+
+//
+// Add time for given day (most seen)
+// It will clean up obsolete data (> 7 days)
+//
+func AddTimeTogether(m map[time.Time]uint64, date time.Time, duration uint64) uint64 {
+	if _, ok := m[date]; ok {
+		m[date] += duration
+	} else {
+		m[date] = duration
+	}
+
+	// Remove older elements & return total time passed together.
+	return CleanMap(&m)
 }

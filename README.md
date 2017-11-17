@@ -47,9 +47,34 @@ $ docker build -t bookish-couscous-base .
 
 # Start the stack:
 $ docker-compose up -d
+[...]
+
+$ docker-compose ps
+            Name                           Command              State              Ports
+----------------------------------------------------------------------------------------------------
+bookishcouscous_client_1        /bin/sh -c /bin/sh /go/src      Up
+                                ...
+bookishcouscous_fo01_1          /bin/sh -c /go/bin/fo           Up
+bookishcouscous_fo02_1          /bin/sh -c /go/bin/fo           Up
+bookishcouscous_fo_1            /opt/nginx/sbin/nginx -g d      Up      443/tcp, 80/tcp
+                                ...
+bookishcouscous_generator_1     /bin/sh -c /bin/sh /go/src      Up
+                                ...
+bookishcouscous_kafka_1         start-kafka.sh                  Up      0.0.0.0:32794->9092/tcp
+bookishcouscous_processor01_1   /go/bin/processor -init         Up
+bookishcouscous_processor02_1   /bin/sh -c /go/bin/processor    Up
+bookishcouscous_processor03_1   /bin/sh -c /go/bin/processor    Up
+bookishcouscous_processor04_1   /bin/sh -c /go/bin/processor    Up
+bookishcouscous_redis_1         docker-entrypoint.sh redis      Up      6379/tcp
+                                ...
+bookishcouscous_scylla_1        /docker-entrypoint.py           Up      10000/tcp, 7000/tcp,
+                                                                        7001/tcp, 9042/tcp,
+                                                                        9160/tcp, 9180/tcp
+bookishcouscous_zookeeper_1     /bin/sh -c /usr/sbin/sshd       Up      0.0.0.0:2181->2181/tcp,
+                                ...                                     22/tcp, 2888/tcp, 3888/tcp
 
 # To send events:
-$ docker exec -ti bookishcouscous_generator_1 generator -h
+$ docker-compose exec generator generator -h
 Usage of generator:
   -days int
         Number of days (default 15)
@@ -64,8 +89,16 @@ Usage of generator:
   -users int
         Number of users (default 100)
 
+# Generate events...
+$ docker-compose exec generator generator -days 7 -event 1000 -friends 5 -users 10
+[...]
+
+# Check in db...
+$ docker-compose exec scylla cqlsh -e 'select * from zenly.kyf;'
+[...]
+
 # To query fo:
-$ docker exec -ti bookishcouscous_client_1 client 42
+$ docker-compose exec client client -uid 42
 2017/11/16 10:25:27 My uid is 42
 2017/11/16 10:25:27 Best friend:          1
 2017/11/16 10:25:27 Crush:                42
@@ -76,6 +109,7 @@ $ docker exec -ti bookishcouscous_client_1 client 42
 # (note: if given uid = user id, then it is like it was not found;
 # just a lazy thing from me :) )
 ```
+
 
 ## Components description
 
@@ -132,6 +166,7 @@ Result is stored in redis (cached 12h - because daily data become obsolete at a 
 
 Opens a grpc socket, queries the fo.
 
+
 ## DB Schema
 
 I've used only 1 scylla table for this:
@@ -168,14 +203,14 @@ SELECT duration, nights, week_most_list, week_friends_list
     FROM kyf WHERE user_id = ? AND rel_user_id = ?
 ```
 
+
 ## Known drawbacks & possible enhancements
 
 - timezones are not managed;
-- long sessions are not managed either (multiple days/nights);
+- used uint64 for ts, (especially in protobuf), didn't look for timestamp types.
+- long sessions are not managed either (multiple nights);
 - data generator could be enhanced to simulate day periods in days & nights, create similar
   patterns, and make a better use of SPs
-- there is a lot of things that could be cached on FO side
-- multiple fo!!!
 - May require better integration testing
 
 
@@ -186,6 +221,4 @@ SELECT duration, nights, week_most_list, week_friends_list
 
 ## Todo:
 
-- Revoir l'algo nuit
 - Data generator
-- multiple fo (google tcp backend), multiple processor

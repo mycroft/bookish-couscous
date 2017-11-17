@@ -4,6 +4,7 @@ import (
 	"flag"
 	"log"
 	"net"
+	"time"
 
 	"github.com/garyburd/redigo/redis"
 	"github.com/gocql/gocql"
@@ -33,12 +34,37 @@ type server struct {
 	redisConn redis.Conn
 }
 
+func WaitForClusterSession(cluster *gocql.ClusterConfig, wait int) (*gocql.Session, error) {
+	var session *gocql.Session
+	var err error
+
+	total_wait := 0
+
+	for {
+		session, err = cluster.CreateSession()
+		if err != nil {
+			if wait <= total_wait {
+				time.Sleep(5)
+				total_wait += 5
+			}
+		} else {
+			break
+		}
+	}
+
+	return session, err
+}
+
 func InitCqlCluster() *gocql.Session {
 	cluster := gocql.NewCluster(scyllaHP)
 
 	cluster.Keyspace = "zenly"
 	cluster.Consistency = gocql.Quorum
-	session, _ := cluster.CreateSession()
+
+	session, err := WaitForClusterSession(cluster, 30)
+	if err != nil {
+		panic(err)
+	}
 
 	return session
 }

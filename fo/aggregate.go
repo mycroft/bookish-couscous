@@ -12,22 +12,6 @@ import (
 	"gitlab.mkz.me/mycroft/bookish-couscous/common"
 )
 
-//
-// Remove older elements and returns sum of all values
-//
-func GetDuration(m *map[time.Time]uint64) uint64 {
-	var total uint64
-
-	weekago := time.Now().Add(time.Duration(-1 * time.Second * 86400 * 7))
-	for k, v := range *m {
-		if weekago.Before(k) {
-			total += v
-		}
-	}
-
-	return total
-}
-
 func LoadCachedState(rc redis.Conn, uid uint32) (*common.HelloReply, error) {
 	v, err := rc.Do("EXISTS", fmt.Sprintf("state:%d", uid))
 	if err != nil {
@@ -122,14 +106,14 @@ func GetFriends(cql *gocql.Session, rc redis.Conn, uid uint32, recursive bool) *
 
 	for iter.Scan(&rel_user_id, &week_friends_list, &week_most_list, &nights, &duration) {
 		// For each friends, compute ... Best Friend
-		bf_duration := GetDuration(&week_friends_list)
+		bf_duration := common.CleanMap(&week_friends_list)
 		if bf_duration > max_friends_duration {
 			max_friends_uid = rel_user_id
 			max_friends_duration = bf_duration
 		}
 
 		// ... then most seen ...
-		mo_duration := GetDuration(&week_most_list)
+		mo_duration := common.CleanMap(&week_most_list)
 		if mo_duration > max_most_duration {
 			max_most_uid = rel_user_id
 			max_most_duration = mo_duration

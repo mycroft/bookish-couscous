@@ -59,16 +59,14 @@ func GetRelMetadata(cql *gocql.Session, u1 uint32, u2 uint32) *RelMetadata {
 //
 func SaveRelMetadata(cql *gocql.Session, rm *RelMetadata) error {
 	err := cql.Query(
-		`INSERT INTO kyf(user_id, rel_user_id, duration, nights, week_most_list, week_friends_list, week_most, week_friends)
-		 VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO kyf(user_id, rel_user_id, duration, nights, week_most_list, week_friends_list)
+		 VALUES(?, ?, ?, ?, ?, ?)`,
 		rm.uid1,
 		rm.uid2,
 		rm.duration,
 		rm.nights,
 		rm.week_most_list,
 		rm.week_friends_list,
-		rm.week_most,
-		rm.week_friends,
 	).Exec()
 
 	if err != nil {
@@ -76,92 +74,6 @@ func SaveRelMetadata(cql *gocql.Session, rm *RelMetadata) error {
 	}
 
 	return err
-}
-
-//
-// Is [start_ts, end_ts] a night ?
-// if < 6h, not a night
-// if start_ts > 22h && end_ts < 8h, ok
-// if night start before 22h, it must stop after 4h of the morning (and start_hour > end_hour!)
-// if night stop after 8h, it must start before 2am (and start_hour < end_hour!)
-//
-// Also, I know that doesn't cover most cases as I only manage session < 8 hours.
-// It would be a little more complicated if we wanted to manage longer session (multiple days...)
-//
-// XXX TO REWRITE & TO TEST
-func IsNight(start_ts uint64, end_ts uint64) bool {
-	res := false
-	duration := end_ts - start_ts
-	if duration < 6*3600 {
-		return res
-	}
-
-	start_hour := time.Unix(int64(start_ts), 0).Hour()
-	end_hour := time.Unix(int64(end_ts), 0).Hour()
-
-	if start_hour >= 22 && end_hour <= 8 {
-		res = true
-	}
-
-	if start_hour < 22 && end_hour > 4 && start_hour > end_hour {
-		res = true
-	}
-
-	if end_hour > 8 && start_hour < 2 && start_hour < end_hour {
-		res = true
-	}
-
-	return res
-}
-
-//
-// Remove older elements and returns sum of all values
-//
-func CleanMap(m *map[time.Time]uint64) uint64 {
-	var total uint64
-
-	weekago := time.Now().Add(time.Duration(-1 * time.Second * 86400 * 7))
-	for k, v := range *m {
-		if !weekago.Before(k) {
-			delete(*m, k)
-		} else {
-			total += v
-		}
-	}
-
-	return total
-}
-
-//
-// Add time for given day (most seen)
-// It will clean up obsolete data (> 7 days)
-//
-func AddTimeTogether(rm *RelMetadata, date time.Time, duration uint64) {
-	if _, ok := rm.week_most_list[date]; ok {
-		rm.week_most_list[date] += duration
-	} else {
-		rm.week_most_list[date] = duration
-	}
-
-	// Remove older elements.
-	rm.week_most = CleanMap(&rm.week_most_list)
-
-	return
-}
-
-//
-// Add time for given day (friends)
-// It will clean up obsolete data (> 7 days)
-//
-func AddTimeTogetherFriends(rm *RelMetadata, date time.Time, duration uint64) {
-	if _, ok := rm.week_friends_list[date]; ok {
-		rm.week_friends_list[date] += duration
-	} else {
-		rm.week_friends_list[date] = duration
-	}
-
-	// Remove older elements.
-	rm.week_friends = CleanMap(&rm.week_friends_list)
 }
 
 //
@@ -214,7 +126,7 @@ func Process(cql *gocql.Session, rc redis.Conn, session common.Session) error {
 	relMetadata1 := GetRelMetadata(cql, session.GetUser1Id(), session.GetUser2Id())
 	relMetadata2 := GetRelMetadata(cql, session.GetUser2Id(), session.GetUser1Id())
 
-	// Compute session duration in minutes.
+	// Compute session duration in minutes (we store minutes in db).
 	session_duration := (session.GetEndTs() - session.GetStartTs()) / 60
 
 	// In DB, we are storing using days data using midnight time for each day as a key,
@@ -222,8 +134,8 @@ func Process(cql *gocql.Session, rc redis.Conn, session common.Session) error {
 	today := time.Unix(int64(session.EndTs-(session.EndTs%86400)), 0).UTC()
 
 	// Storing in struct information to compute "Most seen" in last 7 days
-	AddTimeTogether(relMetadata1, today, session_duration)
-	AddTimeTogether(relMetadata2, today, session_duration)
+	common.AddTimeTogether(relMetadata1.week_most_list, today, session_duration)
+	common.AddTimeTogether(relMetadata2.week_most_list, today, session_duration)
 
 	// Load SP (significant place)
 	session_loc := &common.SignPlace{session.GetLatitude(), session.GetLongitude()}
@@ -232,12 +144,12 @@ func Process(cql *gocql.Session, rc redis.Conn, session common.Session) error {
 
 	// Adding spend together out of our SP: "Best friend" feature
 	if !common.IsNear(sp1, session_loc) {
-		AddTimeTogetherFriends(relMetadata1, today, session_duration)
+		common.AddTimeTogether(relMetadata1.week_friends_list, today, session_duration)
 	}
 
 	// ... and we are doing this for both users.
 	if !common.IsNear(sp2, session_loc) {
-		AddTimeTogetherFriends(relMetadata2, today, session_duration)
+		common.AddTimeTogether(relMetadata2.week_friends_list, today, session_duration)
 	}
 
 	// Adding all time duration between those friends.
@@ -248,11 +160,11 @@ func Process(cql *gocql.Session, rc redis.Conn, session common.Session) error {
 	// For crush, we make sure we are staying in the night,
 	// SPs must NOT be the same
 	// location must be either sp1 or sp2
-	if true == IsNight(session.GetStartTs(), session.GetEndTs()) && !common.IsNear(sp1, sp2) && (common.IsNear(sp1, session_loc) || common.IsNear(sp2, session_loc)) {
+	start_t := time.Unix(int64(session.GetStartTs()), 0)
+	end_t := time.Unix(int64(session.GetEndTs()), 0)
+	if true == common.IsNight(start_t, end_t) && !common.IsNear(sp1, sp2) && (common.IsNear(sp1, session_loc) || common.IsNear(sp2, session_loc)) {
 		// Add night to night list
-		t := time.Unix(int64(session.GetEndTs()), 0)
-
-		relMetadata1.nights = common.Last3Nights(append(relMetadata1.nights, t))
+		relMetadata1.nights = common.Last3Nights(append(relMetadata1.nights, end_t))
 		relMetadata2.nights = relMetadata1.nights
 	}
 
@@ -260,7 +172,6 @@ func Process(cql *gocql.Session, rc redis.Conn, session common.Session) error {
 	SaveRelMetadata(cql, relMetadata2)
 
 	// Drop cache for state:uid, if any
-
 	_, err = rc.Do("DEL", fmt.Sprintf("state:%d", session.GetUser1Id()))
 	if err != nil {
 		return err

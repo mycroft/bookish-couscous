@@ -20,22 +20,65 @@ services:
             KAFKA_CREATE_TOPICS: "sessions:1:1"
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
+# Fo LB is nginx.
+    fo:
+        image: "tekn0ir/nginx-stream:latest"
+        volumes:
+            - ./fo/nginx.conf:/opt/nginx/stream.conf.d/default.conf
+        depends_on:
+            - "fo01"
+            - "fo02"
     generator:
         build: ./generator
         depends_on:
             - "kafka"
             - "redis"
-    processor:
+    processor01:
         build: ./processor
         depends_on:
             - "kafka"
             - "scylla"
             - "redis"
-    fo:
-        build: ./fo
+        entrypoint:
+            - "/go/bin/processor"
+            - "-init"
+# processor01 will create schema, so wait for it.
+    processor02:
+        build: ./processor
         depends_on:
             - "kafka"
             - "scylla"
+            - "redis"
+            - "processor01"
+    processor03:
+        build: ./processor
+        depends_on:
+            - "kafka"
+            - "scylla"
+            - "redis"
+            - "processor01"
+    processor04:
+        build: ./processor
+        depends_on:
+            - "kafka"
+            - "scylla"
+            - "redis"
+            - "processor01"
+
+# Multiple fo servers
+    fo01:
+        build: ./fo
+        depends_on:
+            - "processor01"
+            - "kafka"
+            - "scylla"
+    fo02:
+        build: ./fo
+        depends_on:
+            - "processor01"
+            - "kafka"
+            - "scylla"
+
     client:
         build: ./client
         depends_on:
