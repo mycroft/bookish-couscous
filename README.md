@@ -223,3 +223,7 @@ cqlsh> select * from zenly.kyf;
   patterns, and make a better use of SPs
 - May require better integration testing
 - database records locking issue (2 processors working on same users will lead to data overwrite.)
+  A solution would be not to write data in scylla from processors, but send computations done by
+  processors in a kafka topic & have a last unique process to store everything in cassandra. We
+  would not store values, but add them to stored (update kyf set duration = duration + nn where uid = 42)
+  Another would be to lock row records, but scylla doesn't allow this. Doing it elsewhere seems dangerous.

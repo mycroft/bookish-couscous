@@ -58,6 +58,15 @@ func GetRelMetadata(cql *gocql.Session, u1 uint32, u2 uint32) *RelMetadata {
 //
 // Save data to DB
 //
+// Note: I believe that should work in a world where only one processor exists.
+// When there are multiple, data maybe overwritten, which we doesn't want.
+// A solution would be to row lock this while doing the job, but row locking is slowing
+// everything and by the way, scylla db doesn't do that.
+// The best solution would be to refactor this using UPDATE statements and only counters.
+// (eg: "UPDATE kyf SET duration = duration + xxx"); Doing such would also require to no longer
+// use maps type, but other tables for week_most & week_friends, and also using counters.
+// We would also need a cleanup process to remove older unused data.
+//
 func SaveRelMetadata(cql *gocql.Session, rm *RelMetadata) error {
 	err := cql.Query(
 		`INSERT INTO kyf(user_id, rel_user_id, duration, nights, week_most_list, week_friends_list)
