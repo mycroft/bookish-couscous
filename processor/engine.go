@@ -78,27 +78,33 @@ func SaveRelMetadata(cql *gocql.Session, rm *RelMetadata) error {
 }
 
 //
-// Retrieve in redis SP for a user
+// Retrieve in redis SPs for a user
 //
-func LoadSP(rc redis.Conn, uid uint32) (*common.SignPlace, error) {
-	c, err := rc.Do("GET", fmt.Sprintf("loc:%d", uid))
+func LoadSPs(rc redis.Conn, uid uint32) ([]*common.SignPlace, error) {
+	c, err := rc.Do("SMEMBERS", fmt.Sprintf("loc:%d", uid))
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
 
-	v, err := redis.String(c, err)
+	vs, err := redis.Strings(c, err)
 	if err != nil {
 		log.Println(err)
 		return nil, err
 	}
 
-	loc := &common.SignPlace{}
-	if err := proto.Unmarshal([]byte(v), loc); err != nil {
-		return nil, err
+	locations := make([]*common.SignPlace, 0)
+
+	for _, v := range vs {
+		loc := new(common.SignPlace)
+		if err := proto.Unmarshal([]byte(v), loc); err != nil {
+			return nil, err
+		}
+
+		locations = append(locations, loc)
 	}
 
-	return loc, err
+	return locations, nil
 }
 
 //
@@ -116,6 +122,8 @@ func LoadSP(rc redis.Conn, uid uint32) (*common.SignPlace, error) {
 // data needed to do it according to given session
 //
 func Process(cql *gocql.Session, rc redis.Conn, session common.Session) error {
+	log.Printf("Got message...")
+
 	// check if they are friends.
 	c, err := rc.Do("SISMEMBER", fmt.Sprintf("friends:%d", session.GetUser1Id()), session.GetUser2Id())
 	if v, err := redis.Bool(c, err); !v {
@@ -156,16 +164,16 @@ func Process(cql *gocql.Session, rc redis.Conn, session common.Session) error {
 
 	// Load SP (significant place)
 	session_loc := &common.SignPlace{session.GetLatitude(), session.GetLongitude()}
-	sp1, err := LoadSP(rc, session.GetUser1Id())
-	sp2, err := LoadSP(rc, session.GetUser2Id())
+	sps1, err := LoadSPs(rc, session.GetUser1Id())
+	sps2, err := LoadSPs(rc, session.GetUser2Id())
 
 	// Adding spend together out of our SP: "Best friend" feature
-	if !common.IsNear(sp1, session_loc) {
+	if !common.IsNear(sps1, session_loc) {
 		common.AddTimeTogether(relMetadata1.week_friends_list, today, session_duration)
 	}
 
 	// ... and we are doing this for both users.
-	if !common.IsNear(sp2, session_loc) {
+	if !common.IsNear(sps2, session_loc) {
 		common.AddTimeTogether(relMetadata2.week_friends_list, today, session_duration)
 	}
 
@@ -177,7 +185,7 @@ func Process(cql *gocql.Session, rc redis.Conn, session common.Session) error {
 	// For crush, we make sure we are staying in the night,
 	// SPs must NOT be the same
 	// location must be either sp1 or sp2
-	if true == common.IsNight(start_ts, end_ts) && !common.IsNear(sp1, sp2) && (common.IsNear(sp1, session_loc) || common.IsNear(sp2, session_loc)) {
+	if true == common.IsNight(start_ts, end_ts) && !common.IsNearMultiple(sps1, sps2) && (common.IsNear(sps1, session_loc) || common.IsNear(sps1, session_loc)) {
 		// Add night to night list
 		relMetadata1.nights = common.Last3Nights(append(relMetadata1.nights, end_ts))
 		relMetadata2.nights = relMetadata1.nights

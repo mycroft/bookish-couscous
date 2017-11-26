@@ -131,14 +131,21 @@ func main() {
 		}
 		rel[i] = friends
 
-		sp := generateRandomLocation()
-		spt[i] = *sp
-		out, err := proto.Marshal(sp)
-		if err != nil {
-			panic(err)
-		}
+		// Generate a few of locations for this user (up to 3)
+		num_location := 1 + (rand.Int() % 3)
 
-		redis.Do("SET", fmt.Sprintf("loc:%d", i), out)
+		for j := 0; j < num_location; j++ {
+			sp := generateRandomLocation()
+			spt[i] = *sp
+			out, err := proto.Marshal(sp)
+			if err != nil {
+				panic(err)
+			}
+
+			fmt.Println(out)
+
+			redis.Do("SADD", fmt.Sprintf("loc:%d", i), out)
+		}
 	}
 
 	// Choosing a Time between now and X days before.

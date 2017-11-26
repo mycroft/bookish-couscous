@@ -10,8 +10,7 @@ import (
 // Is current position (e) is in same cell that given place (sp) ?
 // As advised, it uses level 16 cells.
 //
-func IsNear(sp *SignPlace, e *SignPlace) bool {
-
+func IsNearSingle(sp *SignPlace, e *SignPlace) bool {
 	sp_latlon := s2.LatLngFromDegrees(sp.GetLatitude(), sp.GetLongitude())
 	sp_cell := s2.CellFromLatLng(sp_latlon)
 
@@ -22,4 +21,32 @@ func IsNear(sp *SignPlace, e *SignPlace) bool {
 	p1 := s2.PointFromLatLng(latlon)
 
 	return parent_sp_cell.ContainsPoint(p1)
+}
+
+//
+// Check a position matches a user's signification places
+//
+func IsNear(sps []*SignPlace, e *SignPlace) bool {
+	for _, sp := range sps {
+		r := IsNearSingle(sp, e)
+		if r {
+			return true
+		}
+	}
+
+	return false
+}
+
+//
+// Check a user's signification places match on of other's user
+//
+func IsNearMultiple(sps []*SignPlace, es []*SignPlace) bool {
+	for _, e := range es {
+		r := IsNear(sps, e)
+		if r {
+			return true
+		}
+	}
+
+	return false
 }

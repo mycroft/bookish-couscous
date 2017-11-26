@@ -222,5 +222,4 @@ cqlsh> select * from zenly.kyf;
 - data generator could be enhanced to simulate day periods in days & nights, create similar
   patterns, and make a better use of SPs
 - May require better integration testing
-- multiple SP (I know, that was in challenge's, )
 - database records locking issue (2 processors working on same users will lead to data overwrite.)
