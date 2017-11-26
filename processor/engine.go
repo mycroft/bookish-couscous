@@ -8,6 +8,7 @@ import (
 	"github.com/garyburd/redigo/redis"
 	"github.com/gocql/gocql"
 	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/ptypes"
 
 	"gitlab.mkz.me/mycroft/bookish-couscous/common"
 )
@@ -15,12 +16,12 @@ import (
 type RelMetadata struct {
 	uid1              uint32
 	uid2              uint32
-	duration          uint64
+	duration          time.Duration
 	nights            []time.Time
-	week_most_list    map[time.Time]uint64
-	week_most         uint64
-	week_friends_list map[time.Time]uint64
-	week_friends      uint64
+	week_most_list    map[time.Time]time.Duration
+	week_most         time.Duration
+	week_friends_list map[time.Time]time.Duration
+	week_friends      time.Duration
 }
 
 //
@@ -44,11 +45,11 @@ func GetRelMetadata(cql *gocql.Session, u1 uint32, u2 uint32) *RelMetadata {
 	)
 
 	if relMetadata.week_most_list == nil {
-		relMetadata.week_most_list = make(map[time.Time]uint64)
+		relMetadata.week_most_list = make(map[time.Time]time.Duration)
 	}
 
 	if relMetadata.week_friends_list == nil {
-		relMetadata.week_friends_list = make(map[time.Time]uint64)
+		relMetadata.week_friends_list = make(map[time.Time]time.Duration)
 	}
 
 	return relMetadata
@@ -127,11 +128,27 @@ func Process(cql *gocql.Session, rc redis.Conn, session common.Session) error {
 	relMetadata2 := GetRelMetadata(cql, session.GetUser2Id(), session.GetUser1Id())
 
 	// Compute session duration in minutes (we store minutes in db).
-	session_duration := (session.GetEndTs() - session.GetStartTs()) / 60
+	end_ts, err := ptypes.Timestamp(session.GetEndTs())
+	if err != nil {
+		return err
+	}
+
+	start_ts, err := ptypes.Timestamp(session.GetStartTs())
+	if err != nil {
+		return err
+	}
+
+	session_duration := end_ts.Sub(start_ts) / time.Minute
 
 	// In DB, we are storing using days data using midnight time for each day as a key,
 	// so lets compute it...
-	today := time.Unix(int64(session.EndTs-(session.EndTs%86400)), 0).UTC()
+	today := time.Date(
+		end_ts.Year(),
+		end_ts.Month(),
+		end_ts.Day(),
+		0, 0, 0, 0,
+		end_ts.Location(),
+	).UTC()
 
 	// Storing in struct information to compute "Most seen" in last 7 days
 	common.AddTimeTogether(relMetadata1.week_most_list, today, session_duration)
@@ -160,11 +177,9 @@ func Process(cql *gocql.Session, rc redis.Conn, session common.Session) error {
 	// For crush, we make sure we are staying in the night,
 	// SPs must NOT be the same
 	// location must be either sp1 or sp2
-	start_t := time.Unix(int64(session.GetStartTs()), 0)
-	end_t := time.Unix(int64(session.GetEndTs()), 0)
-	if true == common.IsNight(start_t, end_t) && !common.IsNear(sp1, sp2) && (common.IsNear(sp1, session_loc) || common.IsNear(sp2, session_loc)) {
+	if true == common.IsNight(start_ts, end_ts) && !common.IsNear(sp1, sp2) && (common.IsNear(sp1, session_loc) || common.IsNear(sp2, session_loc)) {
 		// Add night to night list
-		relMetadata1.nights = common.Last3Nights(append(relMetadata1.nights, end_t))
+		relMetadata1.nights = common.Last3Nights(append(relMetadata1.nights, end_ts))
 		relMetadata2.nights = relMetadata1.nights
 	}
 

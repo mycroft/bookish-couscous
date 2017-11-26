@@ -218,7 +218,6 @@ cqlsh> select * from zenly.kyf;
 ## Known drawbacks & possible enhancements
 
 - timezones are not managed;
-- used uint64 for ts, (especially in protobuf), didn't look for timestamp types.
 - long sessions are not managed either (multiple nights);
 - data generator could be enhanced to simulate day periods in days & nights, create similar
   patterns, and make a better use of SPs

@@ -7,9 +7,9 @@ import (
 
 func TestAddTimeTogether(t *testing.T) {
 	var t1, t2, t3, t4 time.Time
-	var v uint64
+	var v time.Duration
 
-	m := make(map[time.Time]uint64)
+	m := make(map[time.Time]time.Duration)
 
 	t1 = time.Now().Add(-1 * time.Hour * 24 * 14)
 	t2 = time.Now().Add(-1 * time.Hour * 24 * 13)
@@ -38,7 +38,7 @@ func TestAddTimeTogether(t *testing.T) {
 		t.Error("V != 7 || len(m) != 2")
 	}
 
-	m = make(map[time.Time]uint64)
+	m = make(map[time.Time]time.Duration)
 
 	_ = AddTimeTogether(m, t1, 1)
 	_ = AddTimeTogether(m, t2, 2)

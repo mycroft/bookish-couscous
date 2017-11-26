@@ -65,9 +65,9 @@ func CacheState(rc redis.Conn, uid uint32, hr *common.HelloReply) error {
 
 func GetFriends(cql *gocql.Session, rc redis.Conn, uid uint32, recursive bool) *common.HelloReply {
 	var rel_user_id uint32
-	var duration uint64
-	week_friends_list := make(map[time.Time]uint64)
-	week_most_list := make(map[time.Time]uint64)
+	var duration time.Duration
+	week_friends_list := make(map[time.Time]time.Duration)
+	week_most_list := make(map[time.Time]time.Duration)
 	nights := make([]time.Time, 0)
 
 	if recursive {
@@ -92,7 +92,7 @@ func GetFriends(cql *gocql.Session, rc redis.Conn, uid uint32, recursive bool) *
 		uid,
 	).Iter()
 
-	var max_friends_duration, max_most_duration, max_most_all_time_duration uint64
+	var max_friends_duration, max_most_duration, max_most_all_time_duration time.Duration
 	var max_friends_uid, max_most_uid, max_most_all_time_uid uint32
 
 	helloReply.BestFriend = uid

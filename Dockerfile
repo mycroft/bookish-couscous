@@ -1,10 +1,11 @@
-FROM golang
-
-RUN apt clean all && apt update && apt upgrade -y
-RUN apt install -y protobuf-compiler
-
 # Base image to create all other images
 # docker build -t bookish-couscous-base .
+
+FROM golang
+MAINTAINER pm@mkz.me
+
+RUN apt clean all && apt update && apt upgrade -y
+RUN apt install -y protobuf-compiler libprotobuf-dev
 
 # Download most of dependencies to make sub dockerfile faster to generate
 RUN go get github.com/golang/geo/s2 && \

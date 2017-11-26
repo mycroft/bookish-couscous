@@ -9,8 +9,8 @@ import (
 //
 // Remove older elements and returns sum of all values
 //
-func CleanMap(m *map[time.Time]uint64) uint64 {
-	var total uint64
+func CleanMap(m *map[time.Time]time.Duration) time.Duration {
+	var total time.Duration
 
 	weekago := time.Now().Add(time.Duration(-1 * time.Second * 86400 * 7))
 	for k, v := range *m {
@@ -28,7 +28,7 @@ func CleanMap(m *map[time.Time]uint64) uint64 {
 // Add time for given day (most seen)
 // It will clean up obsolete data (> 7 days)
 //
-func AddTimeTogether(m map[time.Time]uint64, date time.Time, duration uint64) uint64 {
+func AddTimeTogether(m map[time.Time]time.Duration, date time.Time, duration time.Duration) time.Duration {
 	if _, ok := m[date]; ok {
 		m[date] += duration
 	} else {

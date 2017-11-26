@@ -11,6 +11,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/garyburd/redigo/redis"
 	"github.com/golang/protobuf/proto"
+	"github.com/golang/protobuf/ptypes"
 
 	"gitlab.mkz.me/mycroft/bookish-couscous/common"
 )
@@ -140,26 +141,39 @@ func main() {
 		redis.Do("SET", fmt.Sprintf("loc:%d", i), out)
 	}
 
-	starting_ts := uint64(time.Now().Unix() - int64(86400*max_days))
+	// Choosing a Time between now and X days before.
+	starting_ts := time.Now().Add(time.Hour * time.Duration(24*max_days))
+
+	// starting_ts := uint64(time.Now().Unix() - int64(86400*max_days))
 	injected_events := 0
 	days := 0
 
 	for {
 		u1 := rand.Uint32() % uint32(num_users)
 
-		start_ts := starting_ts + rand.Uint64()%86400
-		duration := 1 + (rand.Uint64()%(8*60))*60
+		start_ts := starting_ts.Add(time.Second * time.Duration(rand.Uint64()%86400))
+		duration := time.Duration(time.Hour + time.Second*time.Duration((rand.Uint64()%(8*60))*60))
 
 		loc := generateRandomLocation()
 		if rand.Uint32()%10 == 0 {
 			loc = &spt[u1]
 		}
 
+		pStartTs, err := ptypes.TimestampProto(start_ts)
+		if err != nil {
+			panic(err)
+		}
+
+		pEndTs, err := ptypes.TimestampProto(start_ts.Add(duration))
+		if err != nil {
+			panic(err)
+		}
+
 		p := common.Session{
 			User1Id:   u1,
 			User2Id:   uint32(rel[u1][rand.Int()%num_friends]),
-			StartTs:   start_ts,
-			EndTs:     start_ts + duration,
+			StartTs:   pStartTs,
+			EndTs:     pEndTs,
 			Latitude:  loc.GetLatitude(),
 			Longitude: loc.GetLongitude(),
 		}
@@ -180,7 +194,7 @@ func main() {
 		injected_events++
 
 		if injected_events == max_events {
-			starting_ts += 86400
+			starting_ts = starting_ts.Add(time.Second * 86400)
 			injected_events = 0
 			days++
 			if days == max_days {
