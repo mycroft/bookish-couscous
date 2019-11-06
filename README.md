@@ -5,8 +5,7 @@ bookish-couscous
 
 My own attempt to zen.ly hiring challenge (~2017/11/15).
 
-- Challenge: https://gist.github.com/daedric/db45c531a1bc5e58f0383f9c1bff4306
-- Hosted on https://gitlab.mkz.me/mycroft/bookish-couscous
+The description is in ChallengeZenly.md.
 
 Language used:
 
